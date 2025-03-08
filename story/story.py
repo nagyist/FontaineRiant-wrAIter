@@ -49,7 +49,6 @@ class Story:
         with open(os.path.join(self.save_path, file_name), "w") as fp:
             json.dump(self.events, fp, indent=4)
 
-
     def new(self, context: str = ''):
         self.title = ''
         self.events = [context + '\n']
@@ -58,19 +57,21 @@ class Story:
     def get_max_history(self):
         max_tokens = self.gen.model.config.max_position_embeddings
         if hasattr(self.gen.model.config, 'sliding_window'):
-            max_tokens = min(int(self.gen.model.config.sliding_window * 1.5), max_tokens)
+            # max_tokens = min(int(self.gen.model.config.sliding_window * 1.5), max_tokens)
+            max_tokens = min(int(self.gen.model.config.sliding_window), max_tokens)  # temp fix for <unk> tokens
         return max_tokens - self.gen_length
 
-    def clean_input(self, action=''):
+    def clean_input(self, action='', context=None):
+        context = self.events[0] if context is None else context
         # find the biggest memory that fits max_tokens
         mem_ind = 1
         while len(
-                self.gen.enc.encode(self.events[0] + ''.join(filter(None, self.events[-mem_ind:]))
+                self.gen.enc.encode(context + ''.join(filter(None, self.events[-mem_ind:]))
                                     + action)) < self.get_max_history() and len(self.events) - 1 >= mem_ind:
             mem_ind += 1
         mem_ind -= 1
 
-        events_clipped = self.events[0]
+        events_clipped = context
         strip_one = True
         while mem_ind > 0:
             if len(self.events) - 1 >= mem_ind and self.events[-mem_ind]:
@@ -183,7 +184,7 @@ class Story:
             reader = csv.DictReader(csvfile, delimiter=',')
             for row in reader:
                 if row['word'] in wordcloud:
-                    wordcloud[row['word']] = math.log(wordcloud[row['word']]/int(row['count']))
+                    wordcloud[row['word']] = math.log(wordcloud[row['word']] / int(row['count']))
                     min_freq = min(int(row['count']), min_freq)
                     found_words.add(row['word'])
 
@@ -236,7 +237,7 @@ class Story:
         action = " " + action
         for pair in first_to_second_mappings:
             variations = [(" " + pair[0] + " ", " " + pair[1] + " "),
-                            (" " + pair[0][0].upper() + pair[0][1:] + " ", " " + pair[1][0].upper() + pair[1][1:] + " ")]
+                          (" " + pair[0][0].upper() + pair[0][1:] + " ", " " + pair[1][0].upper() + pair[1][1:] + " ")]
             # Change you if it's before a punctuation
             if pair[0] == "you":
                 pair = ("you", "me")
@@ -250,6 +251,7 @@ class Story:
                 action = reg_expr.sub(variation[1], action)
 
         first_letters_regex = re.compile(r"((?<=[.?!]\s)(\w+)|(^\w+))")
+
         def cap(match):
             string_list = list(match.group())
             string_list[0] = string_list[0].upper()
@@ -258,3 +260,14 @@ class Story:
         action = first_letters_regex.sub(cap, action)
 
         return action[1:]
+
+    def get_synonyms_in_context(self, word: str):
+        context = (
+            f'Synonyms for "produce": crop, production, assemble, offer, build, construct, perform, make.\n'
+            f'Synonyms for "vault": basement, box, cellar, ascent, bounce, bound, soar, leap.\n'
+            f'Synonyms for "bread": aliment, diet, dough, cabbage, nurture, sustenance, victuals, cash.\n')
+        prompt = f'{self.gen.enc.eos_token}\nSynonyms for "{word}":'
+        prompt = self.clean_input(prompt, context=context)
+        result = self.gen.generate(prompt, stream=self.stream, eos_tokens=['.', '!', '?', '\n'], length=self.gen_length)
+        result = self.clean_result(result).strip(',.-;:\n []')
+        return result

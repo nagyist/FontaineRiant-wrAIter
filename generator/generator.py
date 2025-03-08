@@ -37,7 +37,6 @@ class Generator:
     def generate(self, prompt: str, length, stream=True, eos_tokens=[]):
         print('\033[96m', end='')
         eos_token_ids = [self.enc.encode(term)[-1] for term in eos_tokens]
-
         try:
             model_inputs = self.enc([prompt], return_tensors='pt').to(self.device)
             cache = DynamicCache() if 'Mistral' in self.model_name else None
@@ -67,6 +66,7 @@ class Generator:
                 repetition_penalty=1.05,
                 eos_token_id=eos_token_ids + [self.enc.eos_token_id]
             )
+
         except KeyboardInterrupt as e:
             self.streamer.end()
             raise e
@@ -84,7 +84,7 @@ class Generator:
         return self.enc.batch_decode(generated_ids[:, model_inputs['input_ids'].shape[1]:],
                                      clean_up_tokenization_spaces=False)[0]
 
-    def extract_gender(self, prompt):
+    def extract_gender(self, prompt:str):
         """
         Returns whether "he", "she" or "I/you/they" is the most likely token that follows the prompt.
         :param prompt:
@@ -114,4 +114,3 @@ class Generator:
         output_probs = scores.softmax(1).mean(axis=0).flatten().cpu().detach().numpy()
         token_prob = {k : output_probs[k] for k in tokens.keys()}
         return tokens[max(token_prob, key=token_prob.get)]
-

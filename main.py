@@ -286,6 +286,11 @@ class Game:
                     self.keybind_pressed = illustrate
                     inquirer_prompt._handle_skip(event)
 
+                @inquirer_prompt.register_kb('c-t')
+                def thesaurus(event):
+                    self.keybind_pressed = thesaurus
+                    inquirer_prompt._handle_enter(event)
+
                 @inquirer_prompt.register_kb('up', filter=Condition(lambda: len(self.story.events) > 1))
                 def revert(event):
                     if self.tts is not None:
@@ -312,6 +317,7 @@ class Game:
                           'ctrl-s       save story\n'
                           'ctrl-w       print word count and other stats\n'
                           'ctrl-o       show illustration for current story key words\n'
+                          'ctrl-t       open thesaurus (AI generates synonyms in context)\n'
                           'ctrl-c       reset current text box, interrupt generation and audio\n')
                     input('Press enter to continue.')
                     inquirer_prompt._handle_skip(event)
@@ -343,6 +349,9 @@ class Game:
                     # CTRL+C case (inquirer returned None)
                     if self.tts is not None:
                         self.tts.stop()
+                elif self.keybind_pressed == thesaurus:
+                    self.status_text = self.thesaurus_prompt(user_input)
+                    user_input = None  # skip generation
                 elif self.keybind_pressed == redo:
                     n = 2 if isinstance(self.story, Conversation) else 1
                     self.story.events.append(user_input)
@@ -497,6 +506,26 @@ class Game:
 
         print('\n'.join(['\n'.join(wrapper.wrap(line)) for line in body.splitlines()]),
               end='', flush=True)
+
+    def thesaurus_prompt(self, default=None):
+        width = shutil.get_terminal_size(fallback=(82, 40)).columns
+        width = min(width, 180)
+        wrapper = TextWrapper(width=width, replace_whitespace=False, initial_indent='  ', subsequent_indent='  ')
+
+        if default:
+            default = default.strip(',.-":; \n').split()[-1].strip(',.-":; \n')
+        else:
+            default = ''
+
+        user_input = inquirer.text("Thesaurus search:",
+                                   default=default, mandatory=False,
+                                   qmark='', amark='', raise_keyboard_interrupt=False).execute()
+        if user_input is not None:
+            user_input = user_input.strip()
+            output = self.story.get_synonyms_in_context(user_input)
+            return output
+        else:
+            return 'Thesaurus closed'
 
 
 if __name__ == "__main__":
