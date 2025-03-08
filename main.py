@@ -523,7 +523,7 @@ class Game:
         if user_input is not None:
             user_input = user_input.strip()
             output = self.story.get_synonyms_in_context(user_input)
-            return output
+            return '\n'.join(wrapper.wrap(output))
         else:
             return 'Thesaurus closed'
 
