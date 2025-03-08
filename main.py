@@ -217,11 +217,12 @@ class Game:
 
     def loop_text(self):
         self.pprint()
+        default_input = ''
 
         while True:
             try:
                 self.pprint()
-                default_input = self.redo_history[0] if self.redo_history else ''
+                default_input = self.redo_history[0] if self.redo_history else default_input
                 if self.redo_history:
                     self.status_text = f'[{len(self.story.events)}/{len(self.redo_history) + len(self.story.events) - 1}]'
                 inquirer_prompt = inquirer.text(message='', qmark='', amark='', raise_keyboard_interrupt=False,
@@ -229,6 +230,7 @@ class Game:
                                                 long_instruction=self.status_text,
                                                 instruction=' ', keybindings={'answer': [{'key': ['enter', 'enter']}]})
                 self.status_text = 'Enter twice to send, Ctrl-L for commands'
+                default_input = ''
 
                 # Declare keybinds
                 @inquirer_prompt.register_kb('escape')
@@ -269,7 +271,7 @@ class Game:
                 @inquirer_prompt.register_kb('c-p')
                 def edit_story_prompt(event):
                     self.keybind_pressed = edit_story_prompt
-                    inquirer_prompt._handle_skip(event)
+                    inquirer_prompt._handle_enter(event)
 
                 @inquirer_prompt.register_kb('tab')
                 def tab(event):
@@ -279,12 +281,12 @@ class Game:
                 @inquirer_prompt.register_kb('c-s')
                 def save(event):
                     self.keybind_pressed = save
-                    inquirer_prompt._handle_skip(event)
+                    inquirer_prompt._handle_enter(event)
 
                 @inquirer_prompt.register_kb('c-o')
                 def illustrate(event):
                     self.keybind_pressed = illustrate
-                    inquirer_prompt._handle_skip(event)
+                    inquirer_prompt._handle_enter(event)
 
                 @inquirer_prompt.register_kb('c-t')
                 def thesaurus(event):
@@ -329,6 +331,10 @@ class Game:
                 # Handle keybinds that require additional processing
                 if self.keybind_pressed == menu:
                     return
+                elif user_input is None:
+                    # CTRL+C case (inquirer returned None)
+                    if self.tts is not None:
+                        self.tts.stop()
                 elif self.keybind_pressed == edit_story_prompt:
                     new_context = inquirer.text('Edit context/starting prompt:',
                                                 default=self.story.events[0],
@@ -338,19 +344,22 @@ class Game:
                                                 keybindings={'answer': [{'key': ['enter', 'enter']}]}).execute()
                     if new_context is not None and new_context != self.story.events[0]:
                         self.story.events[0] = new_context
+                    default_input = user_input
+                    user_input = None  # skip generation
 
                 elif self.keybind_pressed == save:
                     self.save_prompt()
+                    default_input = user_input
+                    user_input = None  # skip generation
                 elif self.keybind_pressed == illustrate:
                     if self.illustrator is None:
                         self.illustrator = Illustrator(self.settings)
                     self.illustrator.illustrate(self.story)
-                elif user_input is None:
-                    # CTRL+C case (inquirer returned None)
-                    if self.tts is not None:
-                        self.tts.stop()
+                    default_input = user_input
+                    user_input = None  # skip generation
                 elif self.keybind_pressed == thesaurus:
                     self.status_text = self.thesaurus_prompt(user_input)
+                    default_input = user_input
                     user_input = None  # skip generation
                 elif self.keybind_pressed == redo:
                     n = 2 if isinstance(self.story, Conversation) else 1
