@@ -224,7 +224,7 @@ class Game:
                 self.pprint()
                 default_input = self.redo_history[0] if self.redo_history else default_input
                 if self.redo_history:
-                    self.status_text = f'[{len(self.story.events)}/{len(self.redo_history) + len(self.story.events) - 1}]'
+                    self.status_text += f'\n  [{len(self.story.events)}/{len(self.redo_history) + len(self.story.events) - 1}]'
                 inquirer_prompt = inquirer.text(message='', qmark='', amark='', raise_keyboard_interrupt=False,
                                                 mandatory=False, default=default_input, multiline=True,
                                                 long_instruction=self.status_text,
