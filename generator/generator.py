@@ -25,7 +25,6 @@ class Generator:
         else:
             self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map='auto',
                                                               max_memory={0: f'{gpu_memory}GiB', 'cpu': '1000GiB'},
-                                                              attn_implementation='eager',
                                                               gguf_file=model_gguf_file if model_gguf_file else None,
                                                               model_type=model_gguf_type if model_gguf_type else None)
 
